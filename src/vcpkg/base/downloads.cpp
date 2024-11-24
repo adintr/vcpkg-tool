@@ -14,6 +14,7 @@
 #include <vcpkg/base/util.h>
 
 #include <vcpkg/commands.version.h>
+#include <format>
 
 namespace vcpkg
 {
@@ -203,6 +204,7 @@ namespace vcpkg
 
                 if (this_read == 0)
                 {
+                    msg::println(LocalizedString::from_raw(std::format("\rsuccess downloaded size: {}", total_downloaded_size)));
                     return Unit{};
                 }
 
@@ -217,8 +219,12 @@ namespace vcpkg
                     maybe_emit_winhttp_progress(maybe_content_length, last_write, total_downloaded_size, progress_sink);
                     this_read -= this_write;
                     total_downloaded_size += this_write;
+                    
                 } while (this_read > 0);
+
+                msg::print(LocalizedString::from_raw(std::format("\rdownloading... {}", total_downloaded_size)));
             }
+
         }
 
         WinHttpHandle m_hRequest;
@@ -866,11 +872,39 @@ namespace vcpkg
                                                           std::vector<LocalizedString>& errors,
                                                           MessageSink& progress_sink)
     {
-        for (auto&& url : urls)
+        while (true)
         {
-            if (try_download_file(fs, url, headers, download_path, sha512, secrets, errors, progress_sink))
+            for (auto&& url : urls)
             {
-                return url;
+                if (try_download_file(fs, url, headers, download_path, sha512, secrets, errors, progress_sink))
+                {
+                    return url;
+                }
+            }
+
+            msg::println(LocalizedString::from_raw("**** DOWNLOAD FIALED: 1. handle downloaded. 2. retry. 3. give up."));
+            FILE* fp = nullptr;
+            fopen_s(&fp, "CONIN$", "r+t");
+            if (!fp)
+            {
+                msg::println_error(LocalizedString::from_raw("Can\'t get input, default to give up."));
+                break;
+            }
+
+            int x = 0;
+            fscanf_s(fp, "%d", &x);
+            fclose(fp);
+            if (x == 1)
+            {
+                return urls[0];
+            }
+            else if (x == 2)
+            {
+                continue;
+            }
+            else
+            {
+                break;
             }
         }
 
@@ -1004,7 +1038,7 @@ namespace vcpkg
         {
             if (urls.size() != 0)
             {
-                msg::println(msgDownloadingUrl, msg::url = download_path.filename());
+                msg::println(msgDownloadingUrl, msg::url = urls, msg::path = download_path.c_str());
                 auto maybe_url = try_download_file(
                     fs, urls, headers, download_path, sha512, m_config.m_secrets, errors, progress_sink);
                 if (auto url = maybe_url.get())

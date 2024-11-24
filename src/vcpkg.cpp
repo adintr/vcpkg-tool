@@ -212,6 +212,9 @@ int wmain(const int argc, const wchar_t* const* const argv)
 int main(const int argc, const char* const* const argv)
 #endif
 {
+    //printf("wait for attach, press any key to continue...\n");
+    //getchar();
+
     if (argc == 0) std::abort();
 
     ElapsedTimer total_timer;
